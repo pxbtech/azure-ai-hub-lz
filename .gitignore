@@ -1,0 +1,26 @@
+# Secrets, never commit
+SPN Info.txt
+pat.txt
+*.pem
+*.pfx
+.env
+.env.*
+
+# Bicep build artifacts
+*.bicep.json
+iac/main.json
+iac/modules/*.json
+iac/**/*.json
+!iac/main.parameters*.json
+!iac/main.parameters.poc.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Local-only artifacts
+docs/*.pdf

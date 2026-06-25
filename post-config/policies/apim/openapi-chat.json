@@ -1,0 +1,44 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "OpenAI Chat (via Foundry)",
+    "version": "2024-10-21",
+    "description": "Governed chat endpoint backed by gpt-5.4-nano on Microsoft Foundry. All inbound traffic passes the GenAI policy chain attached at the API scope."
+  },
+  "paths": {
+    "/deployments/{deployment-id}/chat/completions": {
+      "post": {
+        "operationId": "ChatCompletions_Create",
+        "summary": "Create chat completion",
+        "parameters": [
+          {
+            "name": "deployment-id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "api-version",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "type": "object" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "OK" },
+          "400": { "description": "Bad Request" },
+          "403": { "description": "Forbidden by policy" },
+          "429": { "description": "Throttled" }
+        }
+      }
+    }
+  }
+}

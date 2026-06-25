@@ -1,0 +1,111 @@
+name: Cost Cancel (AI Hub PoC)
+
+# Polls Azure Cost Management every hour for billing-cycle-to-date spend on the target subscription.
+# If actual spend reaches or exceeds the threshold (CAD), cancels the subscription.
+#
+# Visual Studio Enterprise subscriptions use a 27th-to-26th billing cycle, so we query
+# BillingMonthToDate (not calendar MonthToDate). Adjust if your subscription uses a
+# calendar-aligned billing cycle.
+#
+# Threshold: 1500 CAD.
+# Manual override available via workflow_dispatch with dry_run input.
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'If true, report MTD spend but do NOT cancel the subscription.'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+permissions:
+  contents: read
+
+env:
+  MONTHLY_CAP_CAD: '1500'
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  poll-and-cancel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Azure login (SPN client secret)
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Query month-to-date actual spend
+        id: query
+        shell: bash
+        run: |
+          set -euo pipefail
+          BODY='{
+            "type": "ActualCost",
+            "timeframe": "BillingMonthToDate",
+            "dataset": {
+              "granularity": "None",
+              "aggregation": {
+                "totalCost": { "name": "PreTaxCost", "function": "Sum" }
+              }
+            }
+          }'
+          echo "Querying Cost Management for subscription ${AZURE_SUBSCRIPTION_ID}..."
+          RESP=$(az rest --method post \
+            --url "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.CostManagement/query?api-version=2025-03-01" \
+            --headers "Content-Type=application/json" \
+            --body "$BODY")
+          echo "$RESP" | jq '.'
+          MTD=$(echo "$RESP" | jq -r '.properties.rows[0][0] // 0')
+          CURRENCY=$(echo "$RESP" | jq -r '.properties.columns[1].name // "Unknown"')
+          if [[ "$MTD" == "null" || -z "$MTD" ]]; then MTD="0"; fi
+          echo "Month-to-date spend: ${MTD} (column hint: ${CURRENCY})"
+          echo "mtd=${MTD}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide
+        id: decide
+        shell: bash
+        run: |
+          set -euo pipefail
+          MTD="${{ steps.query.outputs.mtd }}"
+          CAP="${MONTHLY_CAP_CAD}"
+          # Use awk for safe float comparison.
+          OVER=$(awk -v a="$MTD" -v b="$CAP" 'BEGIN { print (a+0 >= b+0) ? "yes" : "no" }')
+          echo "Threshold: ${CAP} CAD. MTD: ${MTD}. Over: ${OVER}."
+          echo "over=${OVER}" >> "$GITHUB_OUTPUT"
+          echo "mtd=${MTD}" >> "$GITHUB_OUTPUT"
+          echo "cap=${CAP}" >> "$GITHUB_OUTPUT"
+
+      - name: Cancel subscription (if over and not dry run)
+        if: steps.decide.outputs.over == 'yes' && (github.event_name == 'schedule' || inputs.dry_run == 'false')
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Spend ${{ steps.decide.outputs.mtd }} is at or over ${{ steps.decide.outputs.cap }}. Cancelling subscription ${AZURE_SUBSCRIPTION_ID}..."
+          az rest --method post \
+            --url "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Subscription/cancel?api-version=2021-10-01"
+          echo "Cancel request accepted. Subscription will transition to Disabled within minutes."
+
+      - name: Dry run report (no action)
+        if: steps.decide.outputs.over == 'yes' && github.event_name == 'workflow_dispatch' && inputs.dry_run == 'true'
+        shell: bash
+        run: |
+          echo "DRY RUN: would have cancelled subscription. Spend ${{ steps.decide.outputs.mtd }} is at or over ${{ steps.decide.outputs.cap }}."
+
+      - name: Under cap
+        if: steps.decide.outputs.over == 'no'
+        shell: bash
+        run: |
+          echo "MTD ${{ steps.decide.outputs.mtd }} is under the ${{ steps.decide.outputs.cap }} cap. No action."

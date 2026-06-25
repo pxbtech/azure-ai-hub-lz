@@ -1,0 +1,51 @@
+name: Bicep what-if on pull request
+
+# Runs az deployment sub what-if against the target subscription whenever a
+# pull request touches the Bicep templates. Read-only; never deploys.
+
+on:
+  pull_request:
+    paths:
+      - 'iac/**'
+      - '.github/workflows/whatif.yml'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  LOCATION: canadacentral
+
+jobs:
+  whatif:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId":       "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret":   "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId":       "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: az bicep build
+        shell: bash
+        run: az bicep build --file iac/main.bicep
+
+      - name: az deployment sub what-if
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment sub what-if \
+            --name "aihub-poc-pr-${{ github.event.pull_request.number }}" \
+            --location "${LOCATION}" \
+            --template-file iac/main.bicep \
+            --parameters @iac/main.parameters.poc.json \
+            --result-format ResourceIdOnly

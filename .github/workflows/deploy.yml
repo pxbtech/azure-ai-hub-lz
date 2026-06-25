@@ -1,0 +1,113 @@
+name: Deploy AI Hub PoC
+
+# End-to-end deployment of the AI Hub PoC.
+#
+# Stage 1: Bicep what-if against the target subscription.
+# Stage 2: Bicep deployment at subscription scope.
+# Stage 3: PowerShell post-configuration (RBAC, KV secrets, diagnostic
+#          settings, APIM gateway with policy chain, Foundry RAI policy,
+#          alert rules).
+#
+# Trigger: manual workflow_dispatch only. Deployment is intentionally not
+# automated on push so changes can be reviewed before being applied to the
+# live subscription.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_what_if_only:
+        description: "Run only Stage 1 (what-if). Skip apply and post-config."
+        required: false
+        type: choice
+        default: 'false'
+        options: [ 'true', 'false' ]
+      run_post_config:
+        description: "Run Stage 3 (post-config) after deploy."
+        required: false
+        type: choice
+        default: 'true'
+        options: [ 'true', 'false' ]
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DEPLOYMENT_NAME: aihub-poc-main
+  LOCATION:        canadacentral
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  deploy:
+    name: Bicep what-if, deploy, and post-config
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (SPN client secret)
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId":       "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret":   "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId":       "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Bicep what-if (Stage 1)
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment sub what-if \
+            --name "${DEPLOYMENT_NAME}" \
+            --location "${LOCATION}" \
+            --template-file iac/main.bicep \
+            --parameters @iac/main.parameters.poc.json \
+            --result-format FullResourcePayloads
+
+      - name: Bicep deploy (Stage 2)
+        if: ${{ inputs.run_what_if_only != 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          az deployment sub create \
+            --name "${DEPLOYMENT_NAME}" \
+            --location "${LOCATION}" \
+            --template-file iac/main.bicep \
+            --parameters @iac/main.parameters.poc.json \
+            --output table
+
+      - name: Install Az PowerShell modules (for post-config)
+        if: ${{ inputs.run_what_if_only != 'true' && inputs.run_post_config == 'true' }}
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+          Install-Module Az.Accounts  -Scope CurrentUser -Force
+          Install-Module Az.Resources -Scope CurrentUser -Force
+
+      - name: Authenticate Az PowerShell
+        if: ${{ inputs.run_what_if_only != 'true' && inputs.run_post_config == 'true' }}
+        shell: pwsh
+        env:
+          AZURE_CLIENT_ID:     ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID:     ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          $secure = ConvertTo-SecureString $env:AZURE_CLIENT_SECRET -AsPlainText -Force
+          $cred = New-Object System.Management.Automation.PSCredential ($env:AZURE_CLIENT_ID, $secure)
+          Connect-AzAccount -ServicePrincipal -Credential $cred -Tenant $env:AZURE_TENANT_ID | Out-Null
+          Set-AzContext -SubscriptionId $env:AZURE_SUBSCRIPTION_ID | Out-Null
+
+      - name: Post-config (Stage 3)
+        if: ${{ inputs.run_what_if_only != 'true' && inputs.run_post_config == 'true' }}
+        shell: pwsh
+        env:
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          ./post-config/scripts/Invoke-PostConfig.ps1 `
+            -SubscriptionId $env:AZURE_SUBSCRIPTION_ID `
+            -DeploymentName $env:DEPLOYMENT_NAME

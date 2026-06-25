@@ -1,0 +1,61 @@
+name: Teardown AI Hub PoC
+
+# Removes the AI Hub PoC resource group and the subscription-scope budget.
+# Manual only. Requires the operator to type the resource group name in the
+# confirmation input to prevent accidental runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_rg_name:
+        description: "Type the resource group name to confirm teardown."
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_RG: poc-it-rg-aihub
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Confirm input
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_rg_name }}" != "${EXPECTED_RG}" ]]; then
+            echo "Teardown aborted. Input did not match the expected resource group name."
+            exit 1
+          fi
+          echo "Confirmation matches. Proceeding."
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId":       "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret":   "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId":       "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Delete resource group
+        shell: bash
+        run: |
+          set -euo pipefail
+          az group delete --name "${EXPECTED_RG}" --yes --no-wait
+          echo "Delete submitted for ${EXPECTED_RG}."
+
+      - name: Delete subscription budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUDGET_NAME="poc-aihub-budget-01"
+          az consumption budget delete \
+            --budget-name "${BUDGET_NAME}" \
+            --only-show-errors || echo "Budget already absent."

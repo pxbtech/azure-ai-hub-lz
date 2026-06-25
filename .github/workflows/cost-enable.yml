@@ -1,0 +1,66 @@
+name: Cost Enable (AI Hub PoC)
+
+# Reactivates the AI Hub subscription at the start of each billing cycle.
+# Visual Studio Enterprise subscriptions cycle 27th -> 26th, so reactivation fires at 00:05 UTC on the 27th.
+# Adjust the cron expression if your subscription uses a calendar-aligned billing cycle.
+# Also exposes a workflow_dispatch trigger for manual reactivation after a test cancel.
+
+on:
+  schedule:
+    - cron: '5 0 27 * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  enable-subscription:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Azure login (SPN client secret)
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Pre-state
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATE=$(az rest --method get \
+            --url "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}?api-version=2022-12-01" \
+            | jq -r '.state')
+          echo "Subscription state before enable: $STATE"
+          if [[ "$STATE" == "Enabled" ]]; then
+            echo "Already Enabled. Nothing to do."
+            exit 0
+          fi
+
+      - name: Reactivate subscription
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Calling enable endpoint..."
+          az rest --method post \
+            --url "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.Subscription/enable?api-version=2021-10-01"
+          echo "Enable request accepted."
+
+      - name: Smoke test (Foundry probe)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Sleeping 30s for reactivation to propagate..."
+          sleep 30
+          CODE=$(az rest --method get \
+            --url "https://management.azure.com/subscriptions/${AZURE_SUBSCRIPTION_ID}/providers/Microsoft.CognitiveServices/accounts?api-version=2025-12-01" \
+            --output none && echo "ok" || echo "fail")
+          echo "Foundry probe: $CODE"

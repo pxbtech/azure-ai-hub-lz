@@ -1,0 +1,38 @@
+{
+  "name": "alert-aihub-subscription-disabled-extended",
+  "body": {
+    "location": "${LOCATION}",
+    "properties": {
+      "displayName": "AI Hub: subscription Disabled longer than 5 days",
+      "description": "Pages the platform team when this subscription has been in Disabled state for more than 5 days. Protects against the 90 day permanent delete window if the Enable workflow fails silently.",
+      "severity": 0,
+      "enabled": true,
+      "evaluationFrequency": "PT12H",
+      "windowSize": "P1D",
+      "scopes": [ "${LOG_ANALYTICS_ID}" ],
+      "targetResourceTypes": [ "Microsoft.OperationalInsights/workspaces" ],
+      "criteria": {
+        "allOf": [
+          {
+            "query": "AzureActivity | where SubscriptionId == '${SUBSCRIPTION_ID}' | where TimeGenerated > ago(10d) | where OperationNameValue in~ ('Microsoft.Subscription/cancel/action', 'Microsoft.Subscription/enable/action') | summarize arg_max(TimeGenerated, *) by SubscriptionId | where OperationNameValue =~ 'Microsoft.Subscription/cancel/action' | where now() - TimeGenerated > 5d | summarize Count = count()",
+            "timeAggregation": "Count",
+            "operator": "GreaterThanOrEqual",
+            "threshold": 1,
+            "failingPeriods": {
+              "numberOfEvaluationPeriods": 1,
+              "minFailingPeriodsToAlert": 1
+            }
+          }
+        ]
+      },
+      "actions": {
+        "actionGroups": [ "${ACTION_GROUP_ID}" ],
+        "customProperties": {
+          "severity": "critical",
+          "category": "platform-ops"
+        }
+      },
+      "autoMitigate": true
+    }
+  }
+}

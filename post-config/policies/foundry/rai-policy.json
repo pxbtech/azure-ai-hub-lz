@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "mode": "Default",
+    "basePolicyName": "Microsoft.DefaultV2",
+    "contentFilters": [
+      { "name": "Hate",       "severityThreshold": "Low",    "blocking": true, "enabled": true, "source": "Prompt"     },
+      { "name": "Hate",       "severityThreshold": "Medium", "blocking": true, "enabled": true, "source": "Completion" },
+      { "name": "Sexual",     "severityThreshold": "Low",    "blocking": true, "enabled": true, "source": "Prompt"     },
+      { "name": "Sexual",     "severityThreshold": "Medium", "blocking": true, "enabled": true, "source": "Completion" },
+      { "name": "SelfHarm",   "severityThreshold": "Low",    "blocking": true, "enabled": true, "source": "Prompt"     },
+      { "name": "SelfHarm",   "severityThreshold": "Medium", "blocking": true, "enabled": true, "source": "Completion" },
+      { "name": "Violence",   "severityThreshold": "Low",    "blocking": true, "enabled": true, "source": "Prompt"     },
+      { "name": "Violence",   "severityThreshold": "Medium", "blocking": true, "enabled": true, "source": "Completion" },
+      { "name": "Jailbreak",                                  "blocking": true, "enabled": true, "source": "Prompt"     },
+      { "name": "Protected Material Text",                    "blocking": true, "enabled": true, "source": "Completion" },
+      { "name": "Protected Material Code",                    "blocking": false,"enabled": true, "source": "Completion" }
+    ]
+  }
+}

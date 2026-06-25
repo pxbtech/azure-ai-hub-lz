@@ -1,0 +1,143 @@
+<policies>
+    <inbound>
+        <base />
+
+        <!-- 1. Coarse request-level throttle. Stops accidental loops before any AI cost is incurred. -->
+        <rate-limit-by-key
+            calls="60"
+            renewal-period="60"
+            counter-key="@(context.Subscription?.Id ?? &quot;anon&quot;)"
+            remaining-calls-header-name="x-rate-remaining"
+            retry-after-header-name="retry-after" />
+
+        <!-- 2. Capture request body for downstream policies (block list, PII redaction). -->
+        <set-variable name="promptBody" value="@(context.Request.Body.As<string>(preserveContent: true))" />
+
+        <!-- 3. Enterprise block list. Hard 403 on match. -->
+        <choose>
+            <when condition="@{
+                var body = (string)context.Variables[&quot;promptBody&quot;];
+                string[] blocked = new [] { &quot;PROJECT_ATLAS&quot;, &quot;internal_codename_xyz&quot;, @&quot;\bSSN\b&quot; };
+                foreach (var pat in blocked) {
+                    if (System.Text.RegularExpressions.Regex.IsMatch(body, pat, System.Text.RegularExpressions.RegexOptions.IgnoreCase)) {
+                        return true;
+                    }
+                }
+                return false;
+            }">
+                <return-response>
+                    <set-status code="403" reason="Blocked by enterprise content policy" />
+                    <set-header name="x-block-reason" exists-action="override">
+                        <value>blocklist-match</value>
+                    </set-header>
+                    <set-body>{ "error": "Request blocked by enterprise content policy." }</set-body>
+                </return-response>
+            </when>
+        </choose>
+
+        <!-- 4. PII redaction via Azure AI Language. -->
+        <send-request mode="new" response-variable-name="piiResp" timeout="10" ignore-error="false">
+            <set-url>@("{{language-endpoint}}language/:analyze-text?api-version={{language-api-version}}")</set-url>
+            <set-method>POST</set-method>
+            <set-header name="Content-Type" exists-action="override">
+                <value>application/json</value>
+            </set-header>
+            <set-header name="Ocp-Apim-Subscription-Key" exists-action="override">
+                <value>{{language-key}}</value>
+            </set-header>
+            <set-body>@{
+                var body = (string)context.Variables["promptBody"];
+                var payload = new JObject(
+                    new JProperty("kind", "PiiEntityRecognition"),
+                    new JProperty("parameters", new JObject(
+                        new JProperty("redactionPolicy", new JObject(
+                            new JProperty("policyKind", "entityMask"))))),
+                    new JProperty("analysisInput", new JObject(
+                        new JProperty("documents", new JArray(
+                            new JObject(
+                                new JProperty("id", "1"),
+                                new JProperty("language", "en"),
+                                new JProperty("text", body))))))
+                );
+                return payload.ToString();
+            }</set-body>
+        </send-request>
+
+        <set-variable name="redactedText" value="@{
+            var r = ((IResponse)context.Variables["piiResp"]).Body.As<JObject>(preserveContent: true);
+            var token = r.SelectToken("results.documents[0].redactedText");
+            return token != null ? (string)token : (string)context.Variables["promptBody"];
+        }" />
+
+        <set-body>@{
+            var original = JObject.Parse((string)context.Variables["promptBody"]);
+            var msgs = (JArray)original["messages"];
+            if (msgs != null) {
+                for (int i = msgs.Count - 1; i >= 0; i--) {
+                    if ((string)msgs[i]["role"] == "user") {
+                        msgs[i]["content"] = (string)context.Variables["redactedText"];
+                        break;
+                    }
+                }
+            }
+            return original.ToString();
+        }</set-body>
+
+        <!-- 5. Content Safety (Hate / Sexual / SelfHarm / Violence) and Prompt Shield. -->
+        <llm-content-safety
+            backend-id="content-safety-backend"
+            shield-prompt="true"
+            enforce-on-completions="false">
+            <categories output-type="FourSeverityLevels">
+                <category name="Hate" threshold="4" />
+                <category name="Sexual" threshold="4" />
+                <category name="SelfHarm" threshold="4" />
+                <category name="Violence" threshold="4" />
+            </categories>
+        </llm-content-safety>
+
+        <!-- 6. Token limit and monthly quota per consumer. Real-time FinOps control. -->
+        <llm-token-limit
+            counter-key="@(context.Subscription?.Id ?? &quot;anon&quot;)"
+            tokens-per-minute="2000"
+            token-quota="500000"
+            token-quota-period="Monthly"
+            estimate-prompt-tokens="true"
+            retry-after-header-name="retry-after"
+            remaining-tokens-header-name="x-tokens-remaining"
+            remaining-quota-tokens-header-name="x-quota-remaining"
+            tokens-consumed-header-name="x-tokens-consumed" />
+
+        <!-- 7. Emit token metrics to Application Insights. Per Microsoft docs this
+             policy is only allowed in the inbound section; the policy registers
+             during inbound and emits metrics on the response automatically. -->
+        <llm-emit-token-metric namespace="aihub">
+            <dimension name="API ID" />
+            <dimension name="Operation ID" />
+            <dimension name="Product ID" />
+            <dimension name="Subscription ID" />
+            <dimension name="UseCase" value="@(context.Request.Headers.GetValueOrDefault(&quot;x-use-case&quot;, &quot;unknown&quot;))" />
+        </llm-emit-token-metric>
+
+        <!-- 8. Forward to Foundry. Authenticate via APIM Managed Identity. -->
+        <set-backend-service backend-id="foundry-backend" />
+        <authentication-managed-identity
+            resource="https://cognitiveservices.azure.com"
+            output-token-variable-name="msi-token" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + (string)context.Variables["msi-token"])</value>
+        </set-header>
+    </inbound>
+
+    <backend>
+        <base />
+    </backend>
+
+    <outbound>
+        <base />
+    </outbound>
+
+    <on-error>
+        <base />
+    </on-error>
+</policies>

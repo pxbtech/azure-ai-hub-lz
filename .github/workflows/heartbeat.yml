@@ -1,0 +1,36 @@
+name: Heartbeat (keep scheduled workflows armed)
+
+# GitHub auto-pauses scheduled workflows on a repo with no commit activity for 60 days.
+# This workflow runs weekly and touches a heartbeat file, keeping the scheduler alive.
+
+on:
+  schedule:
+    - cron: '30 12 * * MON'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Touch heartbeat
+        run: |
+          set -euo pipefail
+          mkdir -p .github
+          date -u +"Last heartbeat: %Y-%m-%dT%H:%M:%SZ" > .github/HEARTBEAT.txt
+          if git diff --quiet; then
+            echo "No change. Nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/HEARTBEAT.txt
+          git commit -m "chore: heartbeat"
+          git push

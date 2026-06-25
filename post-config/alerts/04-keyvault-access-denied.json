@@ -1,0 +1,38 @@
+{
+  "name": "alert-aihub-keyvault-access-denied",
+  "body": {
+    "location": "${LOCATION}",
+    "properties": {
+      "displayName": "AI Hub: Key Vault access denied",
+      "description": "Fires when any Key Vault operation on poc-aihub-kv-01 returns HTTP 403. Indicates a misconfigured caller, a missing role assignment, or a probing attempt.",
+      "severity": 2,
+      "enabled": true,
+      "evaluationFrequency": "PT15M",
+      "windowSize": "PT15M",
+      "scopes": [ "${LOG_ANALYTICS_ID}" ],
+      "targetResourceTypes": [ "Microsoft.OperationalInsights/workspaces" ],
+      "criteria": {
+        "allOf": [
+          {
+            "query": "AzureDiagnostics | where SubscriptionId == '${SUBSCRIPTION_ID}' | where ResourceProvider == 'MICROSOFT.KEYVAULT' | where ResourceType == 'VAULTS' | where httpStatusCode_d == 403 | summarize Count = count()",
+            "timeAggregation": "Count",
+            "operator": "GreaterThanOrEqual",
+            "threshold": 1,
+            "failingPeriods": {
+              "numberOfEvaluationPeriods": 1,
+              "minFailingPeriodsToAlert": 1
+            }
+          }
+        ]
+      },
+      "actions": {
+        "actionGroups": [ "${ACTION_GROUP_ID}" ],
+        "customProperties": {
+          "severity": "high",
+          "category": "secrets"
+        }
+      },
+      "autoMitigate": true
+    }
+  }
+}

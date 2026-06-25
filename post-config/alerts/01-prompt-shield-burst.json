@@ -1,0 +1,38 @@
+{
+  "name": "alert-aihub-prompt-shield-burst",
+  "body": {
+    "location": "${LOCATION}",
+    "properties": {
+      "displayName": "AI Hub: Prompt Shield burst",
+      "description": "Fires when APIM rejects more than 5 requests per 5 minutes with x-block-reason matching jailbreak or indirect prompt injection. Scoped via diagnostic settings to the AI Hub APIM instance only.",
+      "severity": 2,
+      "enabled": true,
+      "evaluationFrequency": "PT5M",
+      "windowSize": "PT5M",
+      "scopes": [ "${LOG_ANALYTICS_ID}" ],
+      "targetResourceTypes": [ "Microsoft.OperationalInsights/workspaces" ],
+      "criteria": {
+        "allOf": [
+          {
+            "query": "ApiManagementGatewayLogs | where ResponseCode == 403 | where isnotempty(LastErrorReason) | where LastErrorReason has 'jailbreak' or LastErrorReason has 'IndirectAttack' or LastErrorReason has 'prompt-shield' | summarize Count = count()",
+            "timeAggregation": "Count",
+            "operator": "GreaterThan",
+            "threshold": 5,
+            "failingPeriods": {
+              "numberOfEvaluationPeriods": 1,
+              "minFailingPeriodsToAlert": 1
+            }
+          }
+        ]
+      },
+      "actions": {
+        "actionGroups": [ "${ACTION_GROUP_ID}" ],
+        "customProperties": {
+          "severity": "high",
+          "category": "ai-security"
+        }
+      },
+      "autoMitigate": true
+    }
+  }
+}
