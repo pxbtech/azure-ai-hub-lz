@@ -1,18 +1,20 @@
-name: Cost Cancel (AI Hub PoC)
+name: Cost Cancel
 
-# Polls Azure Cost Management every hour for billing-cycle-to-date spend on the target subscription.
-# If actual spend reaches or exceeds the threshold (CAD), cancels the subscription.
+# Polls Azure Cost Management for billing-cycle-to-date spend on the target subscription.
+# If actual spend reaches or exceeds MONTHLY_CAP_CAD, cancels the subscription.
 #
 # Visual Studio Enterprise subscriptions use a 27th-to-26th billing cycle, so we query
 # BillingMonthToDate (not calendar MonthToDate). Adjust if your subscription uses a
 # calendar-aligned billing cycle.
 #
-# Threshold: 1500 CAD.
 # Manual override available via workflow_dispatch with dry_run input.
+#
+# To arm hourly auto-polling, configure the required secrets and repo variables
+# (see README "Configuration"), then uncomment the `schedule` block below.
 
 on:
-  schedule:
-    - cron: '0 * * * *'
+  # schedule:
+  #   - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -28,7 +30,7 @@ permissions:
   contents: read
 
 env:
-  MONTHLY_CAP_CAD: '1500'
+  MONTHLY_CAP_CAD: ${{ vars.MONTHLY_CAP_CAD || '1500' }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:

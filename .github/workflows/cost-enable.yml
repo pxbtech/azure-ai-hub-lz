@@ -1,13 +1,15 @@
-name: Cost Enable (AI Hub PoC)
+name: Cost Enable
 
-# Reactivates the AI Hub subscription at the start of each billing cycle.
-# Visual Studio Enterprise subscriptions cycle 27th -> 26th, so reactivation fires at 00:05 UTC on the 27th.
+# Reactivates the subscription at the start of each billing cycle.
+# Visual Studio Enterprise subscriptions cycle 27th -> 26th, so reactivation should fire at 00:05 UTC on the 27th.
 # Adjust the cron expression if your subscription uses a calendar-aligned billing cycle.
-# Also exposes a workflow_dispatch trigger for manual reactivation after a test cancel.
+#
+# To arm monthly auto-reactivation, configure the required secrets (see README "Configuration"),
+# then uncomment the `schedule` block below.
 
 on:
-  schedule:
-    - cron: '5 0 27 * *'
+  # schedule:
+  #   - cron: '5 0 27 * *'
   workflow_dispatch: {}
 
 permissions:

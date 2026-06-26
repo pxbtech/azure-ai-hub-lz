@@ -16,6 +16,41 @@ Bicep is locally validated. To rebuild:
 az bicep build --file iac/main.bicep
 ```
 
+## Configuration
+
+This reference repo ships with every workflow scheduled trigger **disabled** so a fresh fork does not produce failing runs in your Actions tab. To deploy into your own subscription:
+
+1. **Fork or clone** this repo into your own GitHub account/org.
+2. **Create a service principal** with Owner on your target Azure subscription. Set up federated credentials or use a client secret.
+3. **Configure GitHub Actions secrets** at `Settings → Secrets and variables → Actions → Secrets`:
+
+   | Secret | Purpose |
+   | --- | --- |
+   | `AZURE_SUBSCRIPTION_ID` | The subscription this stack deploys into. |
+   | `AZURE_TENANT_ID` | Entra ID tenant of that subscription. |
+   | `AZURE_CLIENT_ID` | App registration / SPN client ID. |
+   | `AZURE_CLIENT_SECRET` | SPN client secret (or replace with OIDC federated creds). |
+
+4. **(Optional) Configure repo variables** at `Settings → Secrets and variables → Actions → Variables`. All have sensible defaults:
+
+   | Variable | Default | Used by |
+   | --- | --- | --- |
+   | `MONTHLY_CAP_CAD` | `1500` | `cost-cancel.yml` — hard FinOps cap |
+   | `AZURE_LOCATION` | `canadacentral` | `deploy.yml`, `whatif.yml` |
+   | `DEPLOYMENT_NAME` | `aihub-poc-main` | `deploy.yml` subscription-scope deployment name |
+   | `DEPLOYMENT_NAME_PREFIX` | `aihub-poc` | `whatif.yml` per-PR deployment name prefix |
+   | `RESOURCE_GROUP_NAME` | `poc-it-rg-aihub` | `teardown.yml` confirmation guard |
+   | `BUDGET_NAME` | `poc-aihub-budget-01` | `teardown.yml` budget deletion |
+
+5. **Update `iac/main.parameters.poc.json`** with your `alertEmail`, `apimPublisherEmail`, `apimPublisherName`, and `budgetAmountCad`. Match `budgetAmountCad` to the `MONTHLY_CAP_CAD` repo variable so the in-cluster budget and the out-of-band hard-stop agree.
+
+6. **Arm the schedulers** (only after the secrets above are populated and you have tested with `workflow_dispatch`):
+   - `.github/workflows/cost-cancel.yml` — uncomment the `schedule:` block (hourly poll).
+   - `.github/workflows/cost-enable.yml` — uncomment the `schedule:` block (monthly reactivation).
+   - `.github/workflows/heartbeat.yml` — uncomment the `schedule:` block (weekly keep-alive so GitHub does not pause the above after 60 days of repo inactivity).
+
+7. **Trigger your first run** via Actions → "Deploy AI Hub" → Run workflow. Start with `run_what_if_only: true` to preview.
+
 ## Status snapshot
 
 - Target subscription: configurable via GitHub Actions secret `AZURE_SUBSCRIPTION_ID`

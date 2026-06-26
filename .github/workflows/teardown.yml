@@ -1,8 +1,13 @@
-name: Teardown AI Hub PoC
+name: Teardown
 
-# Removes the AI Hub PoC resource group and the subscription-scope budget.
+# Removes the AI Hub resource group and the subscription-scope budget.
 # Manual only. Requires the operator to type the resource group name in the
 # confirmation input to prevent accidental runs.
+#
+# Defaults: EXPECTED_RG and BUDGET_NAME are taken from vars.* if set, otherwise
+# from the conventional names derived from the default parameters (env=poc,
+# org=it, workload=aihub, instance=01). Override either via repo variables
+# vars.RESOURCE_GROUP_NAME and vars.BUDGET_NAME.
 
 on:
   workflow_dispatch:
@@ -16,7 +21,8 @@ permissions:
   contents: read
 
 env:
-  EXPECTED_RG: poc-it-rg-aihub
+  EXPECTED_RG: ${{ vars.RESOURCE_GROUP_NAME || 'poc-it-rg-aihub' }}
+  BUDGET_NAME: ${{ vars.BUDGET_NAME || 'poc-aihub-budget-01' }}
 
 jobs:
   teardown:
@@ -55,7 +61,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BUDGET_NAME="poc-aihub-budget-01"
           az consumption budget delete \
             --budget-name "${BUDGET_NAME}" \
             --only-show-errors || echo "Budget already absent."

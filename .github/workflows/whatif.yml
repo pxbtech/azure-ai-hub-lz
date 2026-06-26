@@ -15,7 +15,7 @@ permissions:
   pull-requests: write
 
 env:
-  LOCATION: canadacentral
+  LOCATION: ${{ vars.AZURE_LOCATION || 'canadacentral' }}
 
 jobs:
   whatif:
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           az deployment sub what-if \
-            --name "aihub-poc-pr-${{ github.event.pull_request.number }}" \
+            --name "${{ vars.DEPLOYMENT_NAME_PREFIX || 'aihub-poc' }}-pr-${{ github.event.pull_request.number }}" \
             --location "${LOCATION}" \
             --template-file iac/main.bicep \
             --parameters @iac/main.parameters.poc.json \

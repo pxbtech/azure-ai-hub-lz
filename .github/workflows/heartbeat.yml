@@ -1,11 +1,14 @@
-name: Heartbeat (keep scheduled workflows armed)
+name: Heartbeat
 
 # GitHub auto-pauses scheduled workflows on a repo with no commit activity for 60 days.
-# This workflow runs weekly and touches a heartbeat file, keeping the scheduler alive.
+# This workflow keeps the scheduler alive by touching a heartbeat file on a weekly cron.
+#
+# Only needed once you have armed cost-cancel.yml / cost-enable.yml in your own fork.
+# Uncomment the `schedule` block below at that point.
 
 on:
-  schedule:
-    - cron: '30 12 * * MON'
+  # schedule:
+  #   - cron: '30 12 * * MON'
   workflow_dispatch: {}
 
 permissions:
