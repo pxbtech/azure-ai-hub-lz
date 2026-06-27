@@ -7,12 +7,20 @@ pat.txt
 .env.*
 
 # Bicep build artifacts
-*.bicep.json
-iac/main.json
-iac/modules/*.json
-iac/**/*.json
-!iac/main.parameters*.json
-!iac/main.parameters.poc.json
+iac/bicep/main.json
+iac/bicep/modules/*.json
+iac/bicep/**/*.json
+!iac/bicep/parameters/*.json
+
+# Terraform
+iac/terraform/.terraform/
+iac/terraform/.terraform.lock.hcl
+iac/terraform/**/*.tfstate
+iac/terraform/**/*.tfstate.backup
+iac/terraform/**/*.tfstate.*.backup
+iac/terraform/terraform.tfvars
+iac/terraform/*.tfplan
+iac/terraform/crash.log
 
 # OS
 .DS_Store

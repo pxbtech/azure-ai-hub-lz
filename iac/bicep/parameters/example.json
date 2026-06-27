@@ -2,18 +2,18 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "location":            { "value": "canadacentral" },
+    "location":            { "value": "eastus" },
     "envCode":             { "value": "poc" },
     "workload":            { "value": "aihub" },
     "orgCode":             { "value": "it" },
     "instance":            { "value": "01" },
-    "budgetAmountCad":     { "value": 1500 },
+    "budgetAmount":        { "value": 2000 },
     "budgetStartDate":     { "value": "2026-07-01T00:00:00Z" },
     "alertEmail":          { "value": "alerts@example.com" },
     "apimPublisherEmail":  { "value": "alerts@example.com" },
     "apimPublisherName":   { "value": "AI Hub Reference Implementation" },
     "chatModelCapacity":   { "value": 10 },
-    "chatModelName":       { "value": "gpt-5.4-nano" },
-    "chatModelVersion":    { "value": "2026-03-17" }
+    "chatModelName":       { "value": "gpt-4o-mini" },
+    "chatModelVersion":    { "value": "" }
   }
 }

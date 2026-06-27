@@ -84,7 +84,7 @@ flowchart LR
     Foundry[Microsoft Foundry<br/>one resource] --> M1[gpt-5.4-nano deployment]
     Foundry --> M2[Future: embeddings]
     Foundry --> M3[Future: gpt-5.4-mini]
-    APIM -.-> Budget[CAD 1500 hard cap]
+    APIM -.-> Budget[Monthly cap, your billing currency]
     APIM -.-> RateLimit[Per consumer quota]
     APIM -.-> ContentSafety[Content Safety<br/>+ Prompt Shield]
     APIM -.-> PII[PII redaction]
@@ -153,8 +153,8 @@ You file a request with these inputs:
 
 Platform team confirms:
 
-- Subscription headroom is available (current MTD plus your projection stays under CAD 1500).
-- The model you want is available in canadacentral and not retiring within your runway.
+- Subscription headroom is available (current MTD plus your projection stays under the configured monthly cap).
+- The model you want is available in the deployment region and not retiring within your runway.
 - Your TPM and quota numbers are reasonable. Outliers get clarified.
 - No use case already exists that would be a better fit for your need.
 
@@ -585,7 +585,7 @@ A: File a request. The Hub is a living platform. Capability gaps get prioritized
 | **Prompt Shield** | The Microsoft service inside Content Safety that detects jailbreak attempts and indirect prompt injection. Enabled via `shield-prompt="true"`. |
 | **Workbook** | The Application Insights dashboard surfacing per-use-case metrics, blocked prompts, latency, and budget consumption. |
 | **Billing cycle** | The 27th-to-26th window this PoC subscription uses. Quotas and budgets reset at the cycle boundary, not the 1st of the calendar month. |
-| **Hard cap** | The CAD 1500 subscription budget that, if breached, triggers the GitHub Actions workflow to suspend the entire subscription until the next cycle. |
+| **Hard cap** | The subscription budget (configured value in your billing currency) that, if breached, triggers the GitHub Actions workflow to suspend the entire subscription until the next cycle. |
 
 ---
 

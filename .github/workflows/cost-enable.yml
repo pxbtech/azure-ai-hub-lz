@@ -1,15 +1,15 @@
 name: Cost Enable
 
 # Reactivates the subscription at the start of each billing cycle.
-# Visual Studio Enterprise subscriptions cycle 27th -> 26th, so reactivation should fire at 00:05 UTC on the 27th.
-# Adjust the cron expression if your subscription uses a calendar-aligned billing cycle.
+# The default cron below fires at 00:05 UTC on the 1st of each calendar month.
+# Adjust to match your subscription's actual billing cycle anniversary.
 #
 # To arm monthly auto-reactivation, configure the required secrets (see README "Configuration"),
 # then uncomment the `schedule` block below.
 
 on:
   # schedule:
-  #   - cron: '5 0 27 * *'
+  #   - cron: '5 0 1 * *'
   workflow_dispatch: {}
 
 permissions:

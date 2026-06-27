@@ -33,8 +33,8 @@ permissions:
   id-token: write
 
 env:
-  DEPLOYMENT_NAME: ${{ vars.DEPLOYMENT_NAME || 'aihub-poc-main' }}
-  LOCATION:        ${{ vars.AZURE_LOCATION || 'canadacentral' }}
+  DEPLOYMENT_NAME: ${{ vars.DEPLOYMENT_NAME || 'aihub-main' }}
+  LOCATION:        ${{ vars.AZURE_LOCATION || 'eastus' }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
@@ -65,8 +65,8 @@ jobs:
           az deployment sub what-if \
             --name "${DEPLOYMENT_NAME}" \
             --location "${LOCATION}" \
-            --template-file iac/main.bicep \
-            --parameters @iac/main.parameters.poc.json \
+            --template-file iac/bicep/main.bicep \
+            --parameters @iac/bicep/parameters/example.json \
             --result-format FullResourcePayloads
 
       - name: Bicep deploy (Stage 2)
@@ -77,8 +77,8 @@ jobs:
           az deployment sub create \
             --name "${DEPLOYMENT_NAME}" \
             --location "${LOCATION}" \
-            --template-file iac/main.bicep \
-            --parameters @iac/main.parameters.poc.json \
+            --template-file iac/bicep/main.bicep \
+            --parameters @iac/bicep/parameters/example.json \
             --output table
 
       - name: Install Az PowerShell modules (for post-config)

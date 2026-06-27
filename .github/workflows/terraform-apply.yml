@@ -1,0 +1,64 @@
+name: Terraform Apply
+
+# Manual apply. Use workflow_dispatch to plan + apply against the target subscription.
+# Requires OIDC federated credentials on the SPN referenced by AZURE_CLIENT_ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      plan_only:
+        description: 'If true, run terraform plan only (no apply).'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+      tfvars_file:
+        description: 'Path to tfvars relative to iac/terraform.'
+        required: false
+        default: 'terraform.tfvars.example'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_DIR: iac/terraform
+  ARM_USE_OIDC:        true
+  ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  apply:
+    name: terraform apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+
+      - name: terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform plan -var-file=${{ inputs.tfvars_file }} -out=tfplan
+
+      - name: terraform apply
+        if: ${{ inputs.plan_only == 'false' }}
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve tfplan

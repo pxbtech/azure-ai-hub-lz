@@ -1,0 +1,27 @@
+# Copy to terraform.tfvars and adjust. Do not commit terraform.tfvars.
+
+location             = "eastus"
+env_code             = "poc"
+workload             = "aihub"
+org_code             = "it"
+instance             = "01"
+
+budget_amount        = 2000
+budget_start_date    = "2026-07-01T00:00:00Z"
+
+alert_email          = "alerts@example.com"
+apim_publisher_email = "alerts@example.com"
+apim_publisher_name  = "AI Hub Reference Implementation"
+
+chat_model_name      = "gpt-4o-mini"
+chat_model_version   = ""
+chat_model_capacity  = 10
+
+tags = {
+  workload    = "aihub"
+  environment = "poc"
+  costCenter  = "your-cost-center"
+  managedBy   = "terraform"
+  owner       = "platform-team"
+  application = "ai-hub-reference"
+}

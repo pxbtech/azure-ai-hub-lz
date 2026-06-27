@@ -6,7 +6,7 @@ name: Bicep what-if on pull request
 on:
   pull_request:
     paths:
-      - 'iac/**'
+      - 'iac/bicep/**'
       - '.github/workflows/whatif.yml'
   workflow_dispatch: {}
 
@@ -15,7 +15,7 @@ permissions:
   pull-requests: write
 
 env:
-  LOCATION: ${{ vars.AZURE_LOCATION || 'canadacentral' }}
+  LOCATION: ${{ vars.AZURE_LOCATION || 'eastus' }}
 
 jobs:
   whatif:
@@ -37,7 +37,7 @@ jobs:
 
       - name: az bicep build
         shell: bash
-        run: az bicep build --file iac/main.bicep
+        run: az bicep build --file iac/bicep/main.bicep
 
       - name: az deployment sub what-if
         shell: bash
@@ -46,6 +46,6 @@ jobs:
           az deployment sub what-if \
             --name "${{ vars.DEPLOYMENT_NAME_PREFIX || 'aihub-poc' }}-pr-${{ github.event.pull_request.number }}" \
             --location "${LOCATION}" \
-            --template-file iac/main.bicep \
-            --parameters @iac/main.parameters.poc.json \
+            --template-file iac/bicep/main.bicep \
+            --parameters @iac/bicep/parameters/example.json \
             --result-format ResourceIdOnly

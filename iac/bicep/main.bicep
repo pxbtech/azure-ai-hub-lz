@@ -7,21 +7,17 @@
 // /post-config and executed by the GitHub Actions workflow .github/workflows/
 // deploy.yml.
 //
-// Naming convention is documented in /README.md section 3. Workload code
-// "aihub". Environment code "poc". Region canadacentral. All resource names
-// here are derived from these three values and the type abbreviation.
+// Naming convention is documented in /README.md section 3. All resource names
+// derive from {envCode}, {workload}, {orgCode}, {instance} plus the type
+// abbreviation.
 // =============================================================================
 
 targetScope = 'subscription'
 
-@description('Canadian region for all resources. Canada Central required because gpt-5.4-nano is available there on Global Standard.')
-@allowed([
-  'canadacentral'
-  'canadaeast'
-])
-param location string = 'canadacentral'
+@description('Azure region for all resources. Pick a region where your chosen Foundry chat model is available.')
+param location string = 'eastus'
 
-@description('Environment code segment. Lowercase, 2 to 4 chars.')
+@description('Environment code segment. Lowercase, 2 to 4 chars (e.g. dev, test, prod, poc).')
 @minLength(2)
 @maxLength(4)
 param envCode string = 'poc'
@@ -31,15 +27,15 @@ param envCode string = 'poc'
 @maxLength(6)
 param workload string = 'aihub'
 
-@description('Org code segment used in the resource group name. Lowercase.')
+@description('Org / business unit code used in the resource group name. Lowercase.')
 @minLength(2)
 @maxLength(4)
 param orgCode string = 'it'
 
-@description('Subscription billing currency budget cap. Applied per billing cycle. The subscription billing cycle is 27 -> 26.')
-param budgetAmountCad int = 1500
+@description('Budget amount in the subscription billing currency, applied per billing cycle. Set this to whatever monthly cap you want enforced. Example: 2000 means 2000 of your billing currency.')
+param budgetAmount int = 2000
 
-@description('Budget start date. Must be the first of a calendar month, UTC.')
+@description('Budget start date. Must be the first of a calendar month, UTC. Update to a current date for your deployment.')
 param budgetStartDate string = '2026-07-01T00:00:00Z'
 
 @description('Email address that receives FinOps and security alerts.')
@@ -56,18 +52,18 @@ param apimPublisherName string = 'AI Hub Reference Implementation'
 @maxValue(50)
 param chatModelCapacity int = 10
 
-@description('Chat model name. gpt-5.4-nano is the cheapest current-generation chat model available in Canadian regions with the longest retirement runway.')
-param chatModelName string = 'gpt-5.4-nano'
+@description('Chat model name. Pick a model available in your chosen region.')
+param chatModelName string = 'gpt-4o-mini'
 
-@description('Chat model version. Pin to a date string returned by the models API; leave blank to take Azure default.')
-param chatModelVersion string = '2026-03-17'
+@description('Chat model version. Pin to a date string returned by the models API, or leave blank to take Azure default.')
+param chatModelVersion string = ''
 
 @description('Instance number, zero-padded. Used as the suffix on every resource name.')
 @minLength(2)
 @maxLength(2)
 param instance string = '01'
 
-@description('Common tag set applied to every resource.')
+@description('Common tag set applied to every resource. Override to add your costCenter, owner, and compliance tags.')
 param tags object = {
   workload: 'aihub'
   environment: 'poc'
@@ -106,8 +102,7 @@ resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {
 }
 
 // -----------------------------------------------------------------------------
-// Foundation modules. Order matters: observability is referenced by everything
-// else that emits diagnostic settings during post-config.
+// Foundation modules.
 // -----------------------------------------------------------------------------
 
 module observability 'modules/observability.bicep' = {
@@ -226,7 +221,7 @@ module budget 'modules/budget.bicep' = {
   name: 'mod-budget'
   params: {
     budgetName: budgetName
-    amount: budgetAmountCad
+    amount: budgetAmount
     startDate: budgetStartDate
     alertEmail: alertEmail
     actionGroupId: actionGroup.outputs.actionGroupId
@@ -237,8 +232,8 @@ module budget 'modules/budget.bicep' = {
 // Outputs consumed by the post-config script.
 // -----------------------------------------------------------------------------
 
-output resourceGroupName        string = rg.name
-output location                 string = location
+output resourceGroupName         string = rg.name
+output location                  string = location
 output logAnalyticsName          string = observability.outputs.logAnalyticsName
 output logAnalyticsId            string = observability.outputs.logAnalyticsId
 output applicationInsightsName   string = observability.outputs.applicationInsightsName

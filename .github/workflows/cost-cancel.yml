@@ -1,11 +1,13 @@
 name: Cost Cancel
 
 # Polls Azure Cost Management for billing-cycle-to-date spend on the target subscription.
-# If actual spend reaches or exceeds MONTHLY_CAP_CAD, cancels the subscription.
+# If actual spend reaches or exceeds MONTHLY_CAP, cancels the subscription.
 #
-# Visual Studio Enterprise subscriptions use a 27th-to-26th billing cycle, so we query
-# BillingMonthToDate (not calendar MonthToDate). Adjust if your subscription uses a
-# calendar-aligned billing cycle.
+# The cap is currency-agnostic. It is compared against the totalCost the Cost Management
+# API returns in your subscription's billing currency.
+#
+# Billing cycle: by default we query BillingMonthToDate, which respects your subscription's
+# billing cycle. Adjust if you need a calendar-aligned month.
 #
 # Manual override available via workflow_dispatch with dry_run input.
 #
@@ -30,7 +32,7 @@ permissions:
   contents: read
 
 env:
-  MONTHLY_CAP_CAD: ${{ vars.MONTHLY_CAP_CAD || '1500' }}
+  MONTHLY_CAP: ${{ vars.MONTHLY_CAP || '2000' }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
@@ -75,6 +77,7 @@ jobs:
           if [[ "$MTD" == "null" || -z "$MTD" ]]; then MTD="0"; fi
           echo "Month-to-date spend: ${MTD} (column hint: ${CURRENCY})"
           echo "mtd=${MTD}" >> "$GITHUB_OUTPUT"
+          echo "currency=${CURRENCY}" >> "$GITHUB_OUTPUT"
 
       - name: Decide
         id: decide
@@ -82,10 +85,9 @@ jobs:
         run: |
           set -euo pipefail
           MTD="${{ steps.query.outputs.mtd }}"
-          CAP="${MONTHLY_CAP_CAD}"
-          # Use awk for safe float comparison.
+          CAP="${MONTHLY_CAP}"
           OVER=$(awk -v a="$MTD" -v b="$CAP" 'BEGIN { print (a+0 >= b+0) ? "yes" : "no" }')
-          echo "Threshold: ${CAP} CAD. MTD: ${MTD}. Over: ${OVER}."
+          echo "Threshold: ${CAP}. MTD: ${MTD}. Over: ${OVER}."
           echo "over=${OVER}" >> "$GITHUB_OUTPUT"
           echo "mtd=${MTD}" >> "$GITHUB_OUTPUT"
           echo "cap=${CAP}" >> "$GITHUB_OUTPUT"

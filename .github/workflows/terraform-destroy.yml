@@ -1,0 +1,66 @@
+name: Terraform Destroy
+
+# Destructive. Manual only. Requires the operator to type the expected resource
+# group name in the confirmation input to prevent accidental runs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_rg_name:
+        description: 'Type the resource group name to confirm destroy.'
+        required: true
+        type: string
+      tfvars_file:
+        description: 'Path to tfvars relative to iac/terraform.'
+        required: false
+        default: 'terraform.tfvars.example'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TF_DIR: iac/terraform
+  EXPECTED_RG: ${{ vars.RESOURCE_GROUP_NAME || 'poc-it-rg-aihub' }}
+  ARM_USE_OIDC:        true
+  ARM_CLIENT_ID:       ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID:       ${{ secrets.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+jobs:
+  destroy:
+    name: terraform destroy
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Confirm input
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_rg_name }}" != "${EXPECTED_RG}" ]]; then
+            echo "Destroy aborted. Input did not match the expected resource group name."
+            exit 1
+          fi
+          echo "Confirmation matches. Proceeding."
+
+      - uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.0
+
+      - name: terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init
+
+      - name: terraform destroy
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform destroy -auto-approve -var-file=${{ inputs.tfvars_file }}
